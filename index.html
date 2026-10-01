@@ -1,0 +1,431 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Katalyse am Eisenkontakt</title>
+<style>*,*::before,*::after{box-sizing:border-box}body{margin:0}[hidden]{display:none!important}</style>
+<style>
+/* Layout: Kopf, darunter zwei gekoppelte Tafeln (Oberfläche | Energiediagramm), Schrittsteuerung, kurze Merkkästen */
+:root{
+  --bg:#eef1f4; --panel:#ffffff; --fg:#1b2430; --muted:#5b6878; --line:#cfd6de;
+  --accent:#a8461f;          /* Eisenoxid/Rost */
+  --cat:#a8461f; --nocat:#7a8594;
+  --fe:#5d6670; --fe-hi:#7d8791; --n:#2f63c8; --h:#f4f6f8; --h-stroke:#8b96a3;
+  --chip:#e3e8ee;
+  --f-display:"Archivo",system-ui,sans-serif;
+  --f-body:"Source Sans 3",system-ui,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#13181e; --panel:#1b222a; --fg:#e4e9ef; --muted:#97a3b1; --line:#2f3944;
+  --accent:#e07a4c; --cat:#e07a4c; --nocat:#8d99a8;
+  --fe:#4a535d; --fe-hi:#66707b; --n:#6d9cf5; --h:#e9edf2; --h-stroke:#9aa6b4; --chip:#26303a;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#13181e; --panel:#1b222a; --fg:#e4e9ef; --muted:#97a3b1; --line:#2f3944;
+  --accent:#e07a4c; --cat:#e07a4c; --nocat:#8d99a8;
+  --fe:#4a535d; --fe-hi:#66707b; --n:#6d9cf5; --h:#e9edf2; --h-stroke:#9aa6b4; --chip:#26303a;
+  color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:16px;line-height:1.5}
+.wrap{max-width:1180px;margin:0 auto;padding-inline:16px;padding-block:28px 48px;display:grid;gap:22px}
+header{display:grid;gap:6px}
+.eyebrow{font-family:var(--f-mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+h1{font-family:var(--f-display);font-weight:800;font-size:clamp(28px,4.4vw,44px);line-height:1.05;margin:0;text-wrap:balance}
+.lead{margin:0;max-width:68ch;color:var(--muted)}
+.eq{font-family:var(--f-mono);font-size:14px}
+.panels{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media (max-width:860px){.panels{grid-template-columns:1fr}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;min-width:0;display:grid;gap:8px;align-content:start}
+.panel h2{font-family:var(--f-display);font-weight:700;font-size:15px;margin:0;display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:baseline}
+.panel h2 small{font-family:var(--f-mono);font-weight:400;font-size:11px;color:var(--muted)}
+svg{display:block;width:100%;height:auto}
+.atom{transition:transform .9s cubic-bezier(.45,.05,.2,1)}
+@media (prefers-reduced-motion:reduce){.atom{transition:none}}
+.switch{display:inline-flex;align-items:center;gap:12px;cursor:pointer;font:700 16px var(--f-display);justify-self:start;user-select:none}
+.switch input{position:absolute;opacity:0;width:1px;height:1px}
+.switch .track{width:52px;height:30px;border-radius:999px;background:var(--nocat);position:relative;transition:background .25s}
+.switch .knob{position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;transition:transform .25s}
+.switch input:checked + .track{background:var(--accent)}
+.switch input:checked + .track .knob{transform:translateX(22px)}
+.switch input:focus-visible + .track{outline:2px solid var(--accent);outline-offset:3px}
+#fe{transition:opacity .6s}
+.off .chip{opacity:.4;pointer-events:none}
+
+.stepper{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;display:grid;gap:14px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font:600 13px var(--f-body);border:1px solid var(--line);background:var(--chip);color:var(--fg);border-radius:999px;padding:6px 12px;cursor:pointer}
+.chip[aria-current="step"]{background:var(--accent);border-color:var(--accent);color:#fff}
+.chip:focus-visible,.btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.stepbody{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px;align-items:start}
+@media (max-width:640px){.stepbody{grid-template-columns:1fr}}
+.stepbody h3{font-family:var(--f-display);font-size:22px;margin:0 0 4px}
+.stepbody p{margin:0 0 6px;max-width:70ch}
+.stepbody .eq{display:inline-block;background:var(--chip);border-radius:6px;padding:4px 8px;margin-top:4px}
+.rds{color:var(--accent);font-weight:600}
+.btns{display:flex;gap:8px}
+.btn{font:600 14px var(--f-body);border:1px solid var(--line);background:var(--panel);color:var(--fg);border-radius:8px;padding:8px 14px;cursor:pointer}
+.btn.primary{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.btn:disabled{opacity:.4;cursor:default}
+
+.facts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
+@media (max-width:860px){.facts{grid-template-columns:1fr}}
+.fact{border-top:2px solid var(--fg);padding-top:10px;min-width:0}
+.fact h4{font-family:var(--f-display);font-size:15px;margin:0 0 6px}
+.fact ul{margin:0;padding-left:18px;display:grid;gap:4px;font-size:15px}
+.fact .no{color:var(--muted)}
+footer{font-size:12px;color:var(--muted)}
+footer a{color:var(--muted)}
+
+.term{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:help;text-decoration:underline dotted var(--accent);text-decoration-thickness:2px;text-underline-offset:3px}
+.term:hover,.term[aria-expanded="true"]{color:var(--accent)}
+.term:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:2px}
+#pop{position:absolute;z-index:10;max-width:min(340px,calc(100vw - 32px));background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:10px;padding:12px 14px;box-shadow:0 8px 28px rgba(0,0,0,.18);font-size:15px;line-height:1.45}
+#pop b{font-family:var(--f-display);display:block;margin-bottom:4px;color:var(--accent)}
+#pop .ex{display:block;margin-top:6px;font-size:13px;color:var(--muted)}
+.glossar summary{cursor:pointer;font-family:var(--f-display);font-weight:700;font-size:15px}
+.glossar dl{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;margin:12px 0 0}
+@media (min-width:860px){.glossar dl{grid-template-columns:1fr 1fr;column-gap:28px}}
+.glossar dt{font-weight:600}
+.glossar dd{margin:0 0 4px;color:var(--muted);font-size:15px}
+.glossar .item{min-width:0}
+.hint{font-size:13px;color:var(--muted)}
+</style>
+</head>
+<body>
+
+<div id="pop" role="dialog" hidden></div>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Lernfeld 12 · Haber-Bosch-Verfahren</div>
+    <h1>Was macht der Eisenkatalysator?</h1>
+    <p class="lead">Klicken Sie sich durch die Schritte der Ammoniaksynthese an der Fe-Oberfläche. Links sehen Sie, was mit den Teilchen passiert, rechts, wo sich das System gerade im Energiediagramm befindet. <span class="hint">Unterstrichene Fachbegriffe lassen sich antippen.</span> <span class="eq">N₂ + 3 H₂ ⇌ 2 NH₃ &nbsp; ΔH = −92 kJ/mol</span></p>
+  </header>
+
+  <label class="switch" for="kat"><input type="checkbox" id="kat" role="switch" checked><span class="track"><span class="knob"></span></span><span id="katLabel">Katalysator eingeschaltet</span></label>
+
+  <section class="panels">
+    <div class="panel">
+      <h2>Teilchenebene <small>Fe-Oberfläche, schematisch</small></h2>
+      <svg id="scene" viewBox="0 0 640 360" role="img" aria-label="Teilchen an der Eisenoberfläche">
+        <g id="fe"></g>
+        <g id="atoms"></g>
+        <text id="sceneLabel" x="20" y="28" font-family="JetBrains Mono, monospace" font-size="13" fill="var(--muted)"></text>
+      </svg>
+      <div style="font-size:13px;color:var(--muted)">N = Stickstoff · H = Wasserstoff · Fe = Eisen der Katalysatoroberfläche (aktive Zentren)</div>
+    </div>
+
+    <div class="panel">
+      <h2>Energiediagramm <small>Katalyseweg schematisch, nicht maßstäblich</small></h2>
+      <svg id="energy" viewBox="0 0 640 360" role="img" aria-label="Energiediagramm mit und ohne Katalysator"></svg>
+    </div>
+  </section>
+
+  <section class="stepper" aria-label="Reaktionsschritte">
+    <div class="chips" id="chips"></div>
+    <div class="stepbody">
+      <div id="stepText"></div>
+      <div class="btns">
+        <button class="btn" id="prev">Zurück</button>
+        <button class="btn primary" id="next">Weiter</button>
+        <button class="btn" id="play">Abspielen</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="facts">
+    <div class="fact">
+      <h4>Das ändert der {{Katalysator|katalysator}}</h4>
+      <ul>
+        <li>den Reaktionsweg (über {{adsorbierte|adsorption}} Zwischenstufen)</li>
+        <li>die {{Aktivierungsenergie|ea}}: sie sinkt stark</li>
+        <li>die Geschwindigkeit, mit der sich das {{Gleichgewicht|gg}} einstellt</li>
+      </ul>
+    </div>
+    <div class="fact">
+      <h4>Das ändert er nicht</h4>
+      <ul class="no">
+        <li>die {{Reaktionsenthalpie|dh}} (ΔH = −92 kJ/mol)</li>
+        <li>die Lage des {{Gleichgewichts|gg}}, also auch nicht den NH₃-Anteil im Reaktorgas</li>
+        <li>sich selbst: er geht unverändert aus dem Zyklus hervor</li>
+      </ul>
+    </div>
+    <div class="fact">
+      <h4>Der technische Kontakt</h4>
+      <ul>
+        <li>{{Magnetit|magnetit}} Fe₃O₄, im Reaktor zu {{α-Fe|alphafe}} reduziert</li>
+        <li>als {{Schüttung|schuettung}} in Katalysatorbetten, ca. 400–500 °C</li>
+      </ul>
+    </div>
+  </section>
+
+  <details class="glossar" id="glossar"><summary>Fachbegriffe von A bis Z</summary><dl id="gl"></dl></details>
+
+  <footer>Mechanismus nach G. Ertl (Nobelpreis Chemie 2007). Atomisierungsenergie berechnet aus Bindungsenthalpien N≡N 945 kJ/mol und H–H 436 kJ/mol. Energien der Zwischenstufen im Katalyseweg nur qualitativ.</footer>
+</div>
+
+<script>
+(function(){
+const STEPS=[
+ {name:"Gasphase", title:"Ausgangsstoffe in der Gasphase",
+  text:"N₂ und H₂ strömen aus der {{Gasphase|gasphase}} auf die Eisenoberfläche. Die {{N≡N-Dreifachbindung|dreifach}} ist mit 945 kJ/mol eine der stabilsten Bindungen überhaupt. Ohne Hilfe reagieren die Gase selbst bei 500 °C praktisch nicht.",
+  eq:"N₂(g) + 3 H₂(g)"},
+ {name:"Adsorption", title:"Adsorption an aktiven Zentren",
+  text:"N₂ lagert sich an ein {{aktives Zentrum|zentrum}} an ({{Chemisorption|chemisorption}}). Das Eisen gibt {{Elektronendichte|elektronendichte}} in {{antibindende Orbitale|antibindend}} des N₂ ab und schwächt so die Dreifachbindung. H₂ erreicht die Oberfläche.",
+  eq:"N₂(g) → N₂(ad)"},
+ {name:"Dissoziation", title:"Spaltung in Atome",
+  text:"An der Oberfläche {{dissoziieren|dissoziation}} die Moleküle, sie zerfallen in einzelne, fest gebundene Atome. Für H₂ geht das leicht. <span class=\"rds\">Die Spaltung von N₂ ist der langsamste, also {{geschwindigkeitsbestimmende|gbs}} Schritt.</span>",
+  eq:"N₂(ad) → 2 N(ad)   ·   3 H₂ → 6 H(ad)"},
+ {name:"Hydrierung I", title:"Erste Hydrierung",
+  text:"Benachbarte H-Atome wandern über die Oberfläche zu den N-Atomen. Es entsteht NH: Stickstoff und Wasserstoff sind jetzt über eine Einfachbindung verbunden. Das N bleibt weiter an das Eisen gebunden.",
+  eq:"N(ad) + H(ad) → NH(ad)"},
+ {name:"Hydrierung II/III", title:"Weitere Hydrierung bis NH₃",
+  text:"Schrittweise werden zwei weitere H-Atome angelagert. Am Ende sitzt fertiges Ammoniak noch {{adsorbiert|adsorption}} auf der Oberfläche. Diesen Vorgang nennt man {{Hydrierung|hydrierung}}.",
+  eq:"NH(ad) + H(ad) → NH₂(ad)   ·   NH₂(ad) + H(ad) → NH₃(ad)"},
+ {name:"Desorption", title:"Desorption, Zentrum wieder frei",
+  text:"NH₃ löst sich von der Oberfläche ({{Desorption|desorption}}) und verlässt den Katalysator mit dem Gasstrom. Die {{aktiven Zentren|zentrum}} sind wieder frei. Der {{Katalysator|katalysator}} ist unverändert und steht für den nächsten Zyklus bereit.",
+  eq:"NH₃(ad) → NH₃(g)"}
+];
+
+
+const GLOSS={
+ adsorption:["Adsorption","Anlagerung von Teilchen an eine Oberfläche. Das Teilchen bleibt an der Oberfläche haften, dringt aber nicht in den Feststoff ein. „(ad)“ in einer Formel heißt: adsorbiert.","Nicht verwechseln mit Absorption (Aufnahme ins Innere, z. B. CO₂ in Waschlösung)."],
+ alphafe:["α-Fe","Die bei Raumtemperatur stabile Kristallform von metallischem Eisen. Sie entsteht, wenn der Magnetit im Reaktor mit Wasserstoff reduziert wird, und ist die eigentlich aktive Form des Katalysators.",""],
+ antibindend:["Antibindende Orbitale","Bereiche im Molekül, in denen Elektronen die Bindung schwächen statt stärken. Gibt das Eisen Elektronen dorthin ab, wird die N≡N-Bindung lockerer und lässt sich leichter spalten.",""],
+ chemisorption:["Chemisorption","Adsorption, bei der eine echte chemische Bindung zwischen Teilchen und Oberfläche entsteht. Sie ist deutlich stärker als die Physisorption, bei der nur schwache Van-der-Waals-Kräfte wirken.",""],
+ desorption:["Desorption","Umkehrung der Adsorption: Ein Teilchen löst sich wieder von der Oberfläche und geht in die Gasphase über.",""],
+ dissoziation:["Dissoziation","Zerfall eines Moleküls in kleinere Teile, hier in einzelne Atome: N₂ → 2 N, H₂ → 2 H.",""],
+ dreifach:["Dreifachbindung N≡N","Die beiden N-Atome im Stickstoffmolekül teilen sich drei Elektronenpaare. Mit 945 kJ/mol Bindungsenergie ist das eine der stärksten Bindungen überhaupt. Deshalb ist N₂ so reaktionsträge.",""],
+ ea:["Aktivierungsenergie (E_A)","Die Energie, die Teilchen mindestens aufbringen müssen, damit eine Reaktion abläuft. Im Energiediagramm ist das die Höhe des „Bergs“ zwischen Ausgangsstoffen und höchstem Punkt.","Ein Katalysator senkt E_A, indem er einen anderen Reaktionsweg ermöglicht."],
+ elektronendichte:["Elektronendichte","Wie viele Elektronen sich an einer Stelle im Molekül aufhalten. Mehr Elektronendichte an der richtigen Stelle kann eine Bindung stärken oder, wie hier, schwächen.",""],
+ gasphase:["Gasphase","Die Teilchen liegen als freies Gas vor und sind noch nicht an die Oberfläche gebunden. In Formeln: (g).",""],
+ gbs:["Geschwindigkeitsbestimmender Schritt","Der langsamste Teilschritt einer mehrstufigen Reaktion. Er legt fest, wie schnell die Gesamtreaktion höchstens laufen kann, so wie die engste Stelle einer Rohrleitung den Durchfluss begrenzt.",""],
+ gg:["Chemisches Gleichgewicht","Zustand, in dem Hin- und Rückreaktion gleich schnell ablaufen. Die Zusammensetzung ändert sich dann nicht mehr. Ein Katalysator beschleunigt beide Richtungen gleich stark: Das Gleichgewicht stellt sich schneller ein, liegt aber an derselben Stelle.","Die Lage verschieben nur Druck, Temperatur und Konzentrationen (Le Chatelier)."],
+ hydrierung:["Hydrierung","Anlagerung von Wasserstoff an ein Atom oder Molekül. Hier wird ein N-Atom schrittweise zu NH, NH₂ und NH₃ hydriert.",""],
+ katalysator:["Katalysator","Stoff, der eine Reaktion beschleunigt, indem er die Aktivierungsenergie senkt. Er nimmt an der Reaktion teil, liegt am Ende aber unverändert vor. In der Technik heißt der feste Katalysator oft auch „Kontakt“.",""],
+ magnetit:["Magnetit","Eisenoxid mit der Formel Fe₃O₄, ein natürlich vorkommendes Eisenerz. Es ist der Ausgangsstoff für den Haber-Bosch-Katalysator.",""],
+ dh:["Reaktionsenthalpie (ΔH)","Die Wärmeenergie, die bei einer Reaktion frei wird oder aufgenommen werden muss. Negatives ΔH bedeutet exotherm: Es wird Wärme frei. Für 2 mol NH₃ sind das 92 kJ.",""],
+ schuettung:["Schüttung","Der Katalysator liegt als loses Granulat (Körner von wenigen Millimetern) im Reaktor. Das Gas strömt durch die Zwischenräume.",""],
+ zentrum:["Aktives Zentrum","Die Stelle auf der Katalysatoroberfläche, an der die Reaktion tatsächlich stattfindet, hier bestimmte Anordnungen von Eisenatomen.",""]
+};
+function termify(html){return html.replace(/\{\{([^|}]+)\|([a-z]+)\}\}/g,(m,l,k)=>`<button type="button" class="term" data-g="${k}" aria-expanded="false">${l}</button>`);}
+document.querySelectorAll(".fact h4,.fact li").forEach(e=>{if(e.innerHTML.includes("{{"))e.innerHTML=termify(e.innerHTML);});
+const pop=document.getElementById("pop");let openBtn=null;
+function closePop(){pop.hidden=true;if(openBtn){openBtn.setAttribute("aria-expanded","false");openBtn=null;}}
+function openPop(btn){
+  const g=GLOSS[btn.dataset.g];if(!g)return;
+  if(openBtn===btn){closePop();return;}
+  closePop();openBtn=btn;btn.setAttribute("aria-expanded","true");
+  pop.innerHTML=`<b>${g[0]}</b>${g[1]}${g[2]?`<span class="ex">${g[2]}</span>`:""}`;
+  pop.hidden=false;
+  const r=btn.getBoundingClientRect(),w=pop.offsetWidth,sx=window.scrollX,sy=window.scrollY;
+  let left=r.left+sx;left=Math.max(16+sx,Math.min(left,sx+document.documentElement.clientWidth-w-16));
+  let top=r.bottom+sy+8;
+  if(r.bottom+pop.offsetHeight+16>window.innerHeight&&r.top>pop.offsetHeight+16)top=r.top+sy-pop.offsetHeight-8;
+  pop.style.left=left+"px";pop.style.top=top+"px";
+}
+document.addEventListener("click",e=>{const b=e.target.closest(".term");if(b){openPop(b);return;}if(!e.target.closest("#pop"))closePop();});
+document.addEventListener("keydown",e=>{if(e.key==="Escape")closePop();});
+window.addEventListener("resize",closePop);
+const gl=document.getElementById("gl");
+Object.values(GLOSS).sort((a,b)=>a[0].localeCompare(b[0],"de")).forEach(g=>{
+  const d=document.createElement("div");d.className="item";
+  d.innerHTML=`<dt>${g[0]}</dt><dd>${g[1]}${g[2]?" "+g[2]:""}</dd>`;gl.appendChild(d);
+});
+
+/* ---------- Szene ---------- */
+const NS="http://www.w3.org/2000/svg";
+const fe=document.getElementById("fe"), atomsG=document.getElementById("atoms");
+const SURF=318;
+for(let r=0;r<2;r++){
+  for(let x=(r?45:20);x<=640;x+=50){
+    const c=document.createElementNS(NS,"circle");
+    c.setAttribute("cx",x);c.setAttribute("cy",SURF+r*30);c.setAttribute("r",24);
+    c.setAttribute("fill",r?"var(--fe)":"var(--fe-hi)");c.setAttribute("stroke","var(--panel)");c.setAttribute("stroke-width","2");
+    fe.appendChild(c);
+    if(!r){const t=document.createElementNS(NS,"text");t.setAttribute("x",x);t.setAttribute("y",SURF-1);t.setAttribute("text-anchor","middle");
+      t.setAttribute("font-family","Archivo, system-ui, sans-serif");t.setAttribute("font-weight","700");t.setAttribute("font-size","13");t.setAttribute("fill","#fff");t.setAttribute("opacity",".85");t.textContent="Fe";fe.appendChild(t);}
+  }
+}
+// 2 N + 6 H; Positionen je Schritt [x,y]
+const NH3=(x,y)=>[[x-19,y-17],[x+19,y-17],[x,y-29]];
+const P=[
+ // 0 Gasphase
+ {N:[[290,92],[316,92]], H:[[110,120],[128,120],[440,70],[458,70],[530,160],[548,160]]},
+ // 1 Adsorption
+ {N:[[290,282],[290,256]], H:[[150,200],[168,200],[420,180],[438,180],[540,215],[558,215]]},
+ // 2 Dissoziation (H0-2 gehören später zu N1, H3-5 zu N2)
+ {N:[[245,284],[395,284]], H:[[145,288],[195,288],[295,288],[345,288],[445,288],[495,288]]},
+ // 3 NH
+ {N:[[245,284],[395,284]], H:[[245,262],[195,288],[295,288],[395,262],[445,288],[495,288]]},
+ // 4 NH3 adsorbiert
+ {N:[[245,282],[395,282]], H:[...NH3(245,282),...NH3(395,282)]},
+ // 5 Desorption
+ {N:[[220,120],[440,80]], H:[...NH3(220,120),...NH3(440,80)]}
+];
+const atomEls=[];
+function mk(type){
+  const g=document.createElementNS(NS,"g");g.setAttribute("class","atom");
+  const c=document.createElementNS(NS,"circle"), t=document.createElementNS(NS,"text");
+  t.setAttribute("text-anchor","middle");t.setAttribute("dominant-baseline","central");
+  t.setAttribute("font-family","Archivo, system-ui, sans-serif");t.setAttribute("font-weight","800");
+  if(type==="N"){c.setAttribute("r",14);c.setAttribute("fill","var(--n)");t.setAttribute("fill","#fff");t.setAttribute("font-size","17");t.textContent="N";}
+  else{c.setAttribute("r",11);c.setAttribute("fill","var(--h)");c.setAttribute("stroke","var(--h-stroke)");c.setAttribute("stroke-width","1.5");t.setAttribute("fill","#1b2430");t.setAttribute("font-size","14");t.textContent="H";}
+  g.appendChild(c);g.appendChild(t);atomsG.appendChild(g);return g;
+}
+const Hs=[...Array(6)].map(()=>mk("H")), Ns=[mk("N"),mk("N")];
+function place(step){
+  const p=P[step];
+  Ns.forEach((g,i)=>g.style.transform=`translate(${p.N[i][0]}px,${p.N[i][1]}px)`);
+  Hs.forEach((g,i)=>g.style.transform=`translate(${p.H[i][0]}px,${p.H[i][1]}px)`);
+  document.getElementById("sceneLabel").textContent=STEPS[step].eq;
+}
+
+/* ---------- Energiediagramm ---------- */
+const E=document.getElementById("energy");
+const XS=[70,165,265,365,460,560];
+const CAT=[0,-40,-300,-230,-170,-92];      // Zustände (schematisch)
+const TS=[ null, 70, -160, -110, -80 ];     // Übergangszustände zwischen i und i+1 (null = kein Barrierenberg)
+const ATOM=2253;                            // 945 + 3*436
+const kat=document.getElementById("kat");
+let cur=0;
+function scaleY(showNo){
+  const top=showNo?2400:160, bot=-360, y0=30, y1=318;
+  return e=>y0+(top-e)/(top-bot)*(y1-y0);
+}
+function pathCat(y){
+  let d=`M ${XS[0]-30} ${y(CAT[0])} L ${XS[0]+18} ${y(CAT[0])}`;
+  for(let i=0;i<5;i++){
+    const a=XS[i]+18,b=XS[i+1]-18,m=(a+b)/2,ya=y(CAT[i]),yb=y(CAT[i+1]);
+    const t=TS[i]===null?null:y(TS[i]);
+    if(t===null){d+=` C ${m} ${ya}, ${m} ${yb}, ${b} ${yb}`;}
+    else{const k=(b-a)/4;d+=` C ${a+k} ${ya}, ${m-k} ${t}, ${m} ${t} C ${m+k} ${t}, ${b-k} ${yb}, ${b} ${yb}`;}
+    d+=` L ${XS[i+1]+18} ${yb}`;
+  }
+  return d+` L ${XS[5]+40} ${y(CAT[5])}`;
+}
+function pathNo(y){
+  const a=XS[0]+18,b=XS[5]-18,m=(a+b)/2,k=(b-a)/4;
+  return `M ${XS[0]-30} ${y(0)} L ${a} ${y(0)} C ${a+k} ${y(0)}, ${m-k} ${y(ATOM)}, ${m} ${y(ATOM)} C ${m+k} ${y(ATOM)}, ${b-k} ${y(CAT[5])}, ${b} ${y(CAT[5])} L ${XS[5]+40} ${y(CAT[5])}`;
+}
+function el(tag,attrs,txt){const n=document.createElementNS(NS,tag);for(const k in attrs)n.setAttribute(k,attrs[k]);if(txt!=null)n.textContent=txt;return n;}
+function bracket(x,ya,yb,label,color,anchorLeft){
+  const g=el("g",{});
+  g.appendChild(el("line",{x1:x,y1:ya,x2:x,y2:yb,stroke:color,"stroke-width":1.5,"marker-start":"url(#arr)","marker-end":"url(#arr)"}));
+  g.appendChild(el("text",{x:anchorLeft?x-6:x+6,y:(ya+yb)/2+4,"text-anchor":anchorLeft?"end":"start","font-family":"JetBrains Mono, monospace","font-size":12,fill:color},label));
+  return g;
+}
+function drawEnergy(){
+  const on=kat.checked, show=!on, y=scaleY(show);
+  E.innerHTML="";
+  const defs=el("defs",{});
+  const mk=el("marker",{id:"arr",viewBox:"0 0 10 10",refX:5,refY:5,markerWidth:6,markerHeight:6,orient:"auto-start-reverse"});
+  mk.appendChild(el("path",{d:"M0,0 L10,5 L0,10 z",fill:"var(--muted)"}));defs.appendChild(mk);E.appendChild(defs);
+  // Achsen
+  E.appendChild(el("line",{x1:30,y1:20,x2:30,y2:322,stroke:"var(--muted)","stroke-width":1.2}));
+  E.appendChild(el("line",{x1:30,y1:322,x2:625,y2:322,stroke:"var(--muted)","stroke-width":1.2}));
+  const ylab=el("text",{x:18,y:170,"font-family":"Source Sans 3, sans-serif","font-size":12,fill:"var(--muted)","text-anchor":"middle",transform:"rotate(-90 18 170)"},"Energie");E.appendChild(ylab);
+  E.appendChild(el("text",{x:625,y:357,"font-family":"Source Sans 3, sans-serif","font-size":12,fill:"var(--muted)","text-anchor":"end"},"Reaktionsverlauf →"));
+  // Nulllinie
+  E.appendChild(el("line",{x1:30,y1:y(0),x2:625,y2:y(0),stroke:"var(--line)","stroke-dasharray":"3 4"}));
+  E.appendChild(el("text",{x:36,y:y(0)-6,"font-family":"JetBrains Mono, monospace","font-size":11,fill:"var(--muted)"},"N₂ + 3 H₂"));
+  E.appendChild(el("text",{x:596,y:y(CAT[5])+16,"font-family":"JetBrains Mono, monospace","font-size":11,fill:"var(--muted)","text-anchor":"end"},"2 NH₃"));
+  // ohne Katalysator
+  if(show){
+    E.appendChild(el("path",{d:pathNo(y),fill:"none",stroke:"var(--nocat)","stroke-width":3}));
+    E.appendChild(el("text",{x:315,y:y(ATOM)-8,"text-anchor":"middle","font-family":"JetBrains Mono, monospace","font-size":11,fill:"var(--nocat)"},"2 N + 6 H (Gasphase)"));
+    E.appendChild(bracket(88,y(0),y(ATOM),"≈ 2253 kJ/mol","var(--nocat)",false));
+  }
+  // mit Katalysator
+  E.appendChild(el("path",{d:pathCat(y),fill:"none",stroke:"var(--cat)","stroke-width":on?3:1.5,"stroke-dasharray":on?"none":"4 4",opacity:on?1:.5,"stroke-linejoin":"round"}));
+  // ΔH
+  E.appendChild(bracket(618,y(0),y(CAT[5]),"ΔH",( "var(--muted)"),true));
+  // E_A Kat (bis höchster Übergangszustand)
+  if(!show){
+    const xm=(XS[1]+XS[2])/2;
+    E.appendChild(bracket(xm+30,y(0),y(TS[1]),"E_A, kat","var(--cat)",false));
+  }
+  // Zustandsmarken
+  if(show){
+    E.appendChild(el("circle",{cx:XS[0],cy:y(0),r:8,fill:"var(--nocat)"}));
+    E.appendChild(el("text",{x:XS[0]+14,y:y(0)+22,"font-family":"Source Sans 3, sans-serif","font-size":12,fill:"var(--fg)"},"Die Teilchen kommen nicht über den Berg."));
+  }
+  if(on) XS.forEach((x,i)=>{
+    const active=i===cur;
+    E.appendChild(el("circle",{cx:x,cy:y(CAT[i]),r:active?8:4.5,fill:active?"var(--cat)":"var(--panel)",stroke:"var(--cat)","stroke-width":2}));
+    E.appendChild(el("text",{x:x,y:339,"text-anchor":"middle","font-family":"Source Sans 3, sans-serif","font-size":11,"font-weight":active?700:400,fill:active?"var(--fg)":"var(--muted)"},String(i+1)));
+  });
+  // Legende
+  const lg=el("g",{transform:"translate(400,40)"});
+  if(on){
+    lg.appendChild(el("line",{x1:0,y1:0,x2:26,y2:0,stroke:"var(--cat)","stroke-width":3}));
+    lg.appendChild(el("text",{x:32,y:4,"font-size":12,"font-family":"Source Sans 3, sans-serif",fill:"var(--fg)"},"mit Fe-Katalysator"));
+  }else{
+    lg.appendChild(el("line",{x1:0,y1:0,x2:26,y2:0,stroke:"var(--nocat)","stroke-width":3}));
+    lg.appendChild(el("text",{x:32,y:4,"font-size":12,"font-family":"Source Sans 3, sans-serif",fill:"var(--fg)"},"ohne Katalysator"));
+    lg.appendChild(el("line",{x1:0,y1:18,x2:26,y2:18,stroke:"var(--cat)","stroke-width":1.5,"stroke-dasharray":"4 4",opacity:.5}));
+    lg.appendChild(el("text",{x:32,y:22,"font-size":12,"font-family":"Source Sans 3, sans-serif",fill:"var(--muted)"},"mit Katalysator (Vergleich)"));
+  }
+  E.appendChild(lg);
+}
+
+/* ---------- Steuerung ---------- */
+const chips=document.getElementById("chips");
+STEPS.forEach((s,i)=>{
+  const b=document.createElement("button");b.className="chip";b.id="chip"+i;b.textContent=(i+1)+" · "+s.name;
+  b.addEventListener("click",()=>{stop();go(i);});chips.appendChild(b);
+});
+const prev=document.getElementById("prev"),next=document.getElementById("next"),play=document.getElementById("play");
+function go(i){
+  cur=Math.max(0,Math.min(STEPS.length-1,i));
+  const s=STEPS[cur];
+  closePop();document.getElementById("stepText").innerHTML=`<h3>${cur+1}. ${s.title}</h3><p>${termify(s.text)}</p><span class="eq">${s.eq}</span>`;
+  [...chips.children].forEach((c,k)=>{if(k===cur)c.setAttribute("aria-current","step");else c.removeAttribute("aria-current");});
+  prev.disabled=cur===0;next.disabled=cur===STEPS.length-1;
+  place(cur);drawEnergy();
+}
+let timer=null;
+function stop(){if(timer){clearInterval(timer);timer=null;play.textContent="Abspielen";}}
+prev.addEventListener("click",()=>{stop();go(cur-1);});
+next.addEventListener("click",()=>{stop();go(cur+1);});
+play.addEventListener("click",()=>{
+  if(timer){stop();return;}
+  if(cur===STEPS.length-1)go(0);
+  play.textContent="Anhalten";
+  timer=setInterval(()=>{if(cur>=STEPS.length-1){stop();return;}go(cur+1);},2600);
+});
+const OFF_TEXT=`<h3>Ohne Katalysator: keine Reaktion</h3><p>Ohne Eisenoberfläche gibt es keine {{aktiven Zentren|zentrum}}. N₂ und H₂ stoßen in der {{Gasphase|gasphase}} zwar ständig zusammen, aber ein Stoß bringt nie genug Energie, um die {{N≡N-Dreifachbindung|dreifach}} zu spalten. Dafür wäre ein Umweg über freie Atome nötig, also ein Energieberg von rund 2253 kJ/mol. Auch bei 450 °C entsteht so praktisch kein NH₃.</p><span class="eq">N₂(g) + 3 H₂(g) → keine Reaktion</span>`;
+let wob=null;
+function gasJiggle(){
+  const r=(a,b)=>a+Math.random()*(b-a);
+  const mols=[[Ns[0],Ns[1],13],[Hs[0],Hs[1],10],[Hs[2],Hs[3],10],[Hs[4],Hs[5],10]];
+  const slots=[[90,200],[200,330],[330,460],[460,590]].sort(()=>Math.random()-.5);
+  mols.forEach((m,i)=>{
+    const x=r(slots[i][0]+20,slots[i][1]-30),y=r(70,280),a=r(0,Math.PI);
+    const dx=Math.cos(a)*m[2],dy=Math.sin(a)*m[2];
+    m[0].style.transform=`translate(${x-dx}px,${y-dy}px)`;m[1].style.transform=`translate(${x+dx}px,${y+dy}px)`;
+  });
+}
+function setKat(){
+  const on=kat.checked;
+  document.getElementById("katLabel").textContent=on?"Katalysator eingeschaltet":"Katalysator ausgeschaltet";
+  document.getElementById("fe").style.opacity=on?1:0;
+  document.querySelector(".stepper").classList.toggle("off",!on);
+  stop();closePop();
+  if(on){clearInterval(wob);wob=null;play.disabled=false;go(cur);}
+  else{
+    [prev,next,play].forEach(b=>b.disabled=true);
+    document.getElementById("stepText").innerHTML=termify(OFF_TEXT);
+    document.getElementById("sceneLabel").textContent="N₂ + 3 H₂ → keine Reaktion";
+    gasJiggle();clearInterval(wob);
+    if(!matchMedia("(prefers-reduced-motion: reduce)").matches)wob=setInterval(gasJiggle,1300);
+    drawEnergy();
+  }
+}
+kat.addEventListener("change",setKat);
+go(0);
+})();
+</script>
+
+</body>
+</html>
